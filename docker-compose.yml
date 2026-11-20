@@ -1,0 +1,49 @@
+# Servidor completo (MySQL + API FastAPI) para laptop o Raspberry Pi.
+#   cp .env.example .env   # y edita las claves
+#   docker compose up -d --build
+services:
+  db:
+    image: mysql:8.4
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:?Define MYSQL_ROOT_PASSWORD en .env}
+      MYSQL_DATABASE: bd_aplicacion_movil
+      MYSQL_USER: ${DB_USER:-blog_api}
+      MYSQL_PASSWORD: ${DB_PASSWORD:?Define DB_PASSWORD en .env}
+      TZ: UTC
+    command: ["--character-set-server=utf8mb4", "--collation-server=utf8mb4_unicode_ci"]
+    volumes:
+      - mysql_datos:/var/lib/mysql
+      # Se ejecuta sólo la primera vez (cuando el volumen está vacío).
+      - ./backend_API/bd.sql:/docker-entrypoint-initdb.d/01-bd.sql:ro
+    ports:
+      # Opcional: acceso desde la laptop con MySQL Workbench / DBeaver.
+      - "${MYSQL_PORT:-3307}:3306"
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -u root -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 60
+      # La primera inicialización puede tardar varios minutos en una Raspberry Pi.
+      start_period: 180s
+
+  api:
+    build: ./backend_API
+    restart: unless-stopped
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_USER: ${DB_USER:-blog_api}
+      DB_PASSWORD: ${DB_PASSWORD}
+      DB_NAME: bd_aplicacion_movil
+      SECRET_KEY: ${SECRET_KEY:?Define SECRET_KEY en .env}
+      MINUTOS_TOKEN: ${MINUTOS_TOKEN:-720}
+      CORS_ORIGINS: "*"
+    ports:
+      - "${API_PORT:-8000}:8000"
+
+volumes:
+  mysql_datos:

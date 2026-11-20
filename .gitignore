@@ -1,0 +1,8 @@
+# Secretos
+.env
+backend_API/.env
+
+# Python
+backend_API/venv/
+__pycache__/
+*.pyc
